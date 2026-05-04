@@ -5,6 +5,7 @@ const CYCLE_START_DATE = "2026-05-01";
 const MEDICATION_DAYS = 14;
 const BREAK_DAYS = 7;
 const CYCLE_DAYS = MEDICATION_DAYS + BREAK_DAYS;
+const MEAL_OPTIONS = ["多め", "普通", "少なめ", "食べられない"];
 
 function getTodayKey() {
   return new Date().toISOString().slice(0, 10);
@@ -87,6 +88,12 @@ export default function App() {
     }
   };
 
+  const updateTodayRecord = (field, value) => {
+    const current = log[today] || {};
+    const newLog = { ...log, [today]: { ...current, [field]: value } };
+    save(newLog);
+  };
+
   const todayData = log[today] || {};
   const morningDone = !!todayData.morning;
   const nightDone = !!todayData.night;
@@ -165,7 +172,7 @@ export default function App() {
           maxWidth: 400,
         }}
       >
-        {["today", "history"].map((v) => (
+        {["today", "history", "record"].map((v) => (
           <button
             key={v}
             onClick={() => setView(v)}
@@ -181,7 +188,7 @@ export default function App() {
               cursor: "pointer",
             }}
           >
-            {v === "today" ? "今日" : "履歴"}
+            {v === "today" ? "今日" : v === "history" ? "履歴" : "記録"}
           </button>
         ))}
       </div>
@@ -271,6 +278,9 @@ export default function App() {
             const m = !!d.morning;
             const n = !!d.night;
             const cycle = getCycleStatus(date);
+            const temperature = d.temperature ?? "";
+            const mealAmount = d.mealAmount ?? "";
+            const note = (d.note ?? "").trim();
             return (
               <div
                 key={date}
@@ -285,52 +295,65 @@ export default function App() {
                   border: `1px solid ${m && n ? "#2d6040" : "#1a1a2a"}`,
                 }}
               >
-                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <div
-                    style={{
-                      fontSize: 13,
-                      color: date === today ? "#a0c4ff" : "#9090b0",
-                    }}
-                  >
-                    {getJPDate(date)}
-                  </div>
-                  <div style={{ fontSize: 11, color: "#505065" }}>
-                    {getDayOfWeek(date)}
-                  </div>
-                  <span
-                    style={{
-                      fontSize: 10,
-                      background:
-                        cycle.phase === "medication"
-                          ? "#193024"
-                          : cycle.phase === "break"
-                            ? "#1f2238"
-                            : "#222233",
-                      color:
-                        cycle.phase === "medication"
-                          ? "#6be0a0"
-                          : cycle.phase === "break"
-                            ? "#a0c4ff"
-                            : "#8c8ca8",
-                      padding: "2px 7px",
-                      borderRadius: 10,
-                    }}
-                  >
-                    {cycle.label}
-                  </span>
-                  {date === today && (
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <div
+                      style={{
+                        fontSize: 13,
+                        color: date === today ? "#a0c4ff" : "#9090b0",
+                      }}
+                    >
+                      {getJPDate(date)}
+                    </div>
+                    <div style={{ fontSize: 11, color: "#505065" }}>
+                      {getDayOfWeek(date)}
+                    </div>
                     <span
                       style={{
                         fontSize: 10,
-                        background: "#2e3150",
-                        color: "#a0c4ff",
+                        background:
+                          cycle.phase === "medication"
+                            ? "#193024"
+                            : cycle.phase === "break"
+                              ? "#1f2238"
+                              : "#222233",
+                        color:
+                          cycle.phase === "medication"
+                            ? "#6be0a0"
+                            : cycle.phase === "break"
+                              ? "#a0c4ff"
+                              : "#8c8ca8",
                         padding: "2px 7px",
                         borderRadius: 10,
                       }}
                     >
-                      今日
+                      {cycle.label}
                     </span>
-                  )}
+                    {date === today && (
+                      <span
+                        style={{
+                          fontSize: 10,
+                          background: "#2e3150",
+                          color: "#a0c4ff",
+                          padding: "2px 7px",
+                          borderRadius: 10,
+                        }}
+                      >
+                        今日
+                      </span>
+                    )}
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <div style={{ fontSize: 10, color: "#7f82a0" }}>
+                      体温: {temperature !== "" ? `${temperature}℃` : "-"}
+                    </div>
+                    <div style={{ fontSize: 10, color: "#7f82a0" }}>
+                      食事: {mealAmount || "-"}
+                    </div>
+                  </div>
+                  <div style={{ fontSize: 10, color: "#646984", marginTop: -2 }}>
+                    その他: {note || "-"}
+                  </div>
                 </div>
                 <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                   <Dot done={m} label="朝" />
@@ -339,6 +362,111 @@ export default function App() {
               </div>
             );
           })}
+        </div>
+      )}
+      {view === "record" && (
+        <div style={{ width: "100%", maxWidth: 400, padding: "24px 24px 0" }}>
+          <div style={{ fontSize: 13, color: "#606080", marginBottom: 16 }}>
+            {getJPDate(today)}（{getDayOfWeek(today)}）の記録
+          </div>
+          <div
+            style={{
+              background: "#141620",
+              border: "1px solid #1a1a2a",
+              borderRadius: 14,
+              padding: 16,
+            }}
+          >
+            <div style={{ fontSize: 12, color: "#8d90ad", marginBottom: 8 }}>
+              体温
+            </div>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                marginBottom: 16,
+              }}
+            >
+              <input
+                type="number"
+                inputMode="decimal"
+                step="0.1"
+                placeholder="例: 36.8"
+                value={todayData.temperature ?? ""}
+                onChange={(e) => updateTodayRecord("temperature", e.target.value)}
+                style={{
+                  flex: 1,
+                  background: "#1a1c2a",
+                  border: "1px solid #2a2d40",
+                  borderRadius: 10,
+                  color: "#e8e6f0",
+                  padding: "10px 12px",
+                  fontSize: 14,
+                  outline: "none",
+                }}
+              />
+              <span style={{ fontSize: 13, color: "#9ba0be" }}>℃</span>
+            </div>
+
+            <div style={{ fontSize: 12, color: "#8d90ad", marginBottom: 8 }}>
+              食事の量
+            </div>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+                gap: 8,
+                marginBottom: 16,
+              }}
+            >
+              {MEAL_OPTIONS.map((option) => {
+                const selected = todayData.mealAmount === option;
+                return (
+                  <button
+                    key={option}
+                    type="button"
+                    onClick={() => updateTodayRecord("mealAmount", option)}
+                    style={{
+                      border: "none",
+                      borderRadius: 10,
+                      padding: "10px 8px",
+                      fontSize: 12,
+                      fontWeight: 600,
+                      cursor: "pointer",
+                      background: selected ? "#2d3757" : "#1b1e2d",
+                      color: selected ? "#cfe2ff" : "#8084a4",
+                    }}
+                  >
+                    {option}
+                  </button>
+                );
+              })}
+            </div>
+
+            <div style={{ fontSize: 12, color: "#8d90ad", marginBottom: 8 }}>
+              その他
+            </div>
+            <textarea
+              placeholder="メモを入力"
+              value={todayData.note ?? ""}
+              onChange={(e) => updateTodayRecord("note", e.target.value)}
+              rows={4}
+              style={{
+                width: "100%",
+                resize: "vertical",
+                background: "#1a1c2a",
+                border: "1px solid #2a2d40",
+                borderRadius: 10,
+                color: "#e8e6f0",
+                padding: "10px 12px",
+                fontSize: 13,
+                lineHeight: 1.6,
+                boxSizing: "border-box",
+                outline: "none",
+              }}
+            />
+          </div>
         </div>
       )}
     </div>
