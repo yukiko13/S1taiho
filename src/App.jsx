@@ -1,6 +1,10 @@
 import { useState, useEffect } from "react";
 
 const STORAGE_KEY = "s1taiho-log";
+const CYCLE_START_DATE = "2026-05-01";
+const MEDICATION_DAYS = 14;
+const BREAK_DAYS = 7;
+const CYCLE_DAYS = MEDICATION_DAYS + BREAK_DAYS;
 
 function getTodayKey() {
   return new Date().toISOString().slice(0, 10);
@@ -24,6 +28,32 @@ function getLast14Days() {
     days.push(d.toISOString().slice(0, 10));
   }
   return days;
+}
+
+function getCycleStatus(dateStr) {
+  const targetDate = new Date(dateStr + "T00:00:00");
+  const startDate = new Date(CYCLE_START_DATE + "T00:00:00");
+  const diffDays = Math.floor((targetDate - startDate) / 86400000);
+
+  if (diffDays < 0) {
+    return { phase: "before", label: "開始前" };
+  }
+
+  const dayInCycle = diffDays % CYCLE_DAYS;
+
+  if (dayInCycle < MEDICATION_DAYS) {
+    return {
+      phase: "medication",
+      dayNumber: dayInCycle + 1,
+      label: "服薬期間",
+    };
+  }
+
+  return {
+    phase: "break",
+    remainingDays: CYCLE_DAYS - dayInCycle,
+    label: "休薬期間",
+  };
 }
 
 export default function App() {
@@ -63,6 +93,7 @@ export default function App() {
   const bothDone = morningDone && nightDone;
 
   const days = getLast14Days();
+  const todayCycle = getCycleStatus(today);
   const streak = (() => {
     let s = 0;
     for (let i = days.length - 1; i >= 0; i--) {
@@ -159,6 +190,24 @@ export default function App() {
           <div style={{ fontSize: 13, color: "#606080", marginBottom: 20 }}>
             {getJPDate(today)}（{getDayOfWeek(today)}）
           </div>
+          <div
+            style={{
+              marginBottom: 14,
+              fontSize: 12,
+              color: todayCycle.phase === "medication" ? "#6be0a0" : "#a0c4ff",
+              background: "#1a1d2c",
+              border: "1px solid #2a2f45",
+              borderRadius: 10,
+              padding: "7px 10px",
+              width: "fit-content",
+            }}
+          >
+            {todayCycle.phase === "medication"
+              ? `服薬${todayCycle.dayNumber}日目`
+              : todayCycle.phase === "break"
+                ? `休薬中（あと${todayCycle.remainingDays}日）`
+                : "服薬開始前"}
+          </div>
           <DoseCard
             label="朝食後"
             icon="🌅"
@@ -221,6 +270,7 @@ export default function App() {
             const d = log[date] || {};
             const m = !!d.morning;
             const n = !!d.night;
+            const cycle = getCycleStatus(date);
             return (
               <div
                 key={date}
@@ -247,6 +297,27 @@ export default function App() {
                   <div style={{ fontSize: 11, color: "#505065" }}>
                     {getDayOfWeek(date)}
                   </div>
+                  <span
+                    style={{
+                      fontSize: 10,
+                      background:
+                        cycle.phase === "medication"
+                          ? "#193024"
+                          : cycle.phase === "break"
+                            ? "#1f2238"
+                            : "#222233",
+                      color:
+                        cycle.phase === "medication"
+                          ? "#6be0a0"
+                          : cycle.phase === "break"
+                            ? "#a0c4ff"
+                            : "#8c8ca8",
+                      padding: "2px 7px",
+                      borderRadius: 10,
+                    }}
+                  >
+                    {cycle.label}
+                  </span>
                   {date === today && (
                     <span
                       style={{
