@@ -21,12 +21,15 @@ function getDayOfWeek(dateStr) {
   return days[new Date(dateStr + "T00:00:00").getDay()];
 }
 
-function getLast14Days() {
+function getAllDaysSinceStart() {
   const days = [];
-  for (let i = 13; i >= 0; i--) {
-    const d = new Date();
-    d.setDate(d.getDate() - i);
+  const start = new Date(CYCLE_START_DATE + "T00:00:00");
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const d = new Date(start);
+  while (d <= today) {
     days.push(d.toISOString().slice(0, 10));
+    d.setDate(d.getDate() + 1);
   }
   return days;
 }
@@ -99,7 +102,7 @@ export default function App() {
   const nightDone = !!todayData.night;
   const bothDone = morningDone && nightDone;
 
-  const days = getLast14Days();
+  const days = getAllDaysSinceStart();
   const todayCycle = getCycleStatus(today);
   const streak = (() => {
     let s = 0;
@@ -217,6 +220,37 @@ export default function App() {
                 ? `休薬中（あと${todayCycle.remainingDays}日）`
                 : "服薬開始前"}
           </div>
+          {todayCycle.phase === "break" ? (
+            <div
+              style={{
+                marginTop: 8,
+                background: "#fff",
+                borderRadius: 18,
+                padding: "28px 24px",
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                gap: 16,
+                border: "1px solid #ccd9f5",
+                boxShadow: "0 2px 12px rgba(74,111,212,0.08)",
+              }}
+            >
+              <img
+                src="/rest.png"
+                alt="休薬中"
+                style={{ width: 80, height: 80, objectFit: "contain" }}
+              />
+              <div style={{ textAlign: "center" }}>
+                <div style={{ fontWeight: 700, color: "#4a6fd4", fontSize: 18 }}>
+                  休薬中
+                </div>
+                <div style={{ fontSize: 13, color: "#9096ab", marginTop: 6 }}>
+                  あと{todayCycle.remainingDays}日でお薬が再開します
+                </div>
+              </div>
+            </div>
+          ) : (
+            <>
           <DoseCard
             label="朝食後"
             image="/morning.png"
@@ -232,7 +266,9 @@ export default function App() {
             flash={justTook === "night"}
             onToggle={() => toggle(today, "night")}
           />
-          {bothDone && (
+            </>
+          )}
+          {bothDone && todayCycle.phase !== "break" && (
             <div
               style={{
                 marginTop: 24,
@@ -278,7 +314,7 @@ export default function App() {
       {view === "history" && (
         <div style={{ width: "100%", maxWidth: 400, padding: "24px 24px 0" }}>
           <div style={{ fontSize: 12, color: "#9096ab", marginBottom: 16 }}>
-            過去14日間
+            2026年5月1日から（全{days.length}日）
           </div>
           {[...days].reverse().map((date) => {
             const d = log[date] || {};
