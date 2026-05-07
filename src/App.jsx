@@ -604,11 +604,13 @@ function ScheduleView({ today }) {
 
   const schedDays = [];
   const start = new Date(today + "T00:00:00");
-  for (let i = 0; i <= 30; i++) {
+  for (let i = 0; i <= 365; i++) {
     const d = new Date(start);
     d.setDate(start.getDate() + i);
     schedDays.push(d.toISOString().slice(0, 10));
   }
+
+  const schedSet = new Set(schedDays);
 
   const byMonth = {};
   for (const dateStr of schedDays) {
@@ -666,7 +668,7 @@ function ScheduleView({ today }) {
             <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 4 }}>
               {cells.map((dateStr, idx) => {
                 if (!dateStr) return <div key={`empty-${idx}`} />;
-                const inRange = schedDays.includes(dateStr);
+                const inRange = schedSet.has(dateStr);
                 const cycle = getCycleStatus(dateStr);
                 const isToday = dateStr === today;
                 const isMed = cycle.phase === "medication";
