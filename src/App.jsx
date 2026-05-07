@@ -116,9 +116,9 @@ export default function App() {
     <div
       style={{
         minHeight: "100vh",
-        background: "#0f1117",
+        background: "#f5f7fa",
         fontFamily: "'Hiragino Sans','Yu Gothic',sans-serif",
-        color: "#e8e6f0",
+        color: "#2d2d3a",
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
@@ -129,16 +129,17 @@ export default function App() {
         style={{
           width: "100%",
           padding: "32px 24px 20px",
-          borderBottom: "1px solid #1e2030",
+          borderBottom: "1px solid #e0e4ed",
           display: "flex",
           flexDirection: "column",
           gap: 4,
+          background: "#fff",
         }}
       >
-        <div style={{ fontSize: 11, letterSpacing: 3, color: "#7a7a9a" }}>
+        <div style={{ fontSize: 11, letterSpacing: 3, color: "#9096ab" }}>
           服薬記録
         </div>
-        <div style={{ fontSize: 22, fontWeight: 700, color: "#fff" }}>
+        <div style={{ fontSize: 22, fontWeight: 700, color: "#2d2d3a" }}>
           エスワンタイホウ
         </div>
         {streak > 0 && (
@@ -148,11 +149,11 @@ export default function App() {
               display: "inline-flex",
               alignItems: "center",
               gap: 6,
-              background: "#1e2235",
+              background: "#eef3ff",
               borderRadius: 20,
               padding: "4px 12px",
               fontSize: 12,
-              color: "#a0c4ff",
+              color: "#4a6fd4",
               width: "fit-content",
             }}
           >
@@ -165,7 +166,7 @@ export default function App() {
           display: "flex",
           gap: 0,
           marginTop: 20,
-          background: "#1a1c2a",
+          background: "#e8ecf5",
           borderRadius: 12,
           padding: 4,
           width: "calc(100% - 48px)",
@@ -181,11 +182,12 @@ export default function App() {
               padding: "8px 0",
               borderRadius: 9,
               border: "none",
-              background: view === v ? "#2e3150" : "transparent",
-              color: view === v ? "#fff" : "#606080",
+              background: view === v ? "#fff" : "transparent",
+              color: view === v ? "#2d2d3a" : "#9096ab",
               fontSize: 13,
               fontWeight: 600,
               cursor: "pointer",
+              boxShadow: view === v ? "0 1px 4px rgba(0,0,0,0.08)" : "none",
             }}
           >
             {v === "today" ? "今日" : v === "history" ? "履歴" : "記録"}
@@ -194,16 +196,16 @@ export default function App() {
       </div>
       {view === "today" && (
         <div style={{ width: "100%", maxWidth: 400, padding: "24px 24px 0" }}>
-          <div style={{ fontSize: 13, color: "#606080", marginBottom: 20 }}>
+          <div style={{ fontSize: 13, color: "#9096ab", marginBottom: 20 }}>
             {getJPDate(today)}（{getDayOfWeek(today)}）
           </div>
           <div
             style={{
               marginBottom: 14,
               fontSize: 12,
-              color: todayCycle.phase === "medication" ? "#6be0a0" : "#a0c4ff",
-              background: "#1a1d2c",
-              border: "1px solid #2a2f45",
+              color: todayCycle.phase === "medication" ? "#2a9060" : "#4a6fd4",
+              background: todayCycle.phase === "medication" ? "#edfaf3" : "#eef3ff",
+              border: `1px solid ${todayCycle.phase === "medication" ? "#b8e8d0" : "#ccd9f5"}`,
               borderRadius: 10,
               padding: "7px 10px",
               width: "fit-content",
@@ -217,7 +219,7 @@ export default function App() {
           </div>
           <DoseCard
             label="朝食後"
-            icon="🌅"
+            image="/morning.png"
             done={morningDone}
             flash={justTook === "morning"}
             onToggle={() => toggle(today, "morning")}
@@ -225,7 +227,7 @@ export default function App() {
           <div style={{ height: 12 }} />
           <DoseCard
             label="夕食後"
-            icon="🌙"
+            image="/evening.png"
             done={nightDone}
             flash={justTook === "night"}
             onToggle={() => toggle(today, "night")}
@@ -234,21 +236,26 @@ export default function App() {
             <div
               style={{
                 marginTop: 24,
-                background: "linear-gradient(135deg,#1e3a2a,#152d22)",
+                background: "#fff",
                 borderRadius: 16,
                 padding: "18px 20px",
                 display: "flex",
                 alignItems: "center",
-                gap: 12,
-                border: "1px solid #2d6040",
+                gap: 16,
+                border: "1px solid #b8e8d0",
+                boxShadow: "0 2px 12px rgba(42,144,96,0.10)",
               }}
             >
-              <span style={{ fontSize: 28 }}>✓</span>
+              <img
+                src="/happy.png"
+                alt="完了"
+                style={{ width: 52, height: 52, objectFit: "contain", flexShrink: 0 }}
+              />
               <div>
                 <div
                   style={{
                     fontWeight: 700,
-                    color: "#6be0a0",
+                    color: "#2a9060",
                     fontSize: 15,
                   }}
                 >
@@ -257,7 +264,7 @@ export default function App() {
                 <div
                   style={{
                     fontSize: 12,
-                    color: "#4a7a60",
+                    color: "#7abfa0",
                     marginTop: 2,
                   }}
                 >
@@ -270,7 +277,7 @@ export default function App() {
       )}
       {view === "history" && (
         <div style={{ width: "100%", maxWidth: 400, padding: "24px 24px 0" }}>
-          <div style={{ fontSize: 12, color: "#606080", marginBottom: 16 }}>
+          <div style={{ fontSize: 12, color: "#9096ab", marginBottom: 16 }}>
             過去14日間
           </div>
           {[...days].reverse().map((date) => {
@@ -291,8 +298,8 @@ export default function App() {
                   padding: "13px 16px",
                   marginBottom: 6,
                   borderRadius: 12,
-                  background: m && n ? "#152d22" : "#141620",
-                  border: `1px solid ${m && n ? "#2d6040" : "#1a1a2a"}`,
+                  background: m && n ? "#edfaf3" : "#fff",
+                  border: `1px solid ${m && n ? "#b8e8d0" : "#e0e4ed"}`,
                 }}
               >
                 <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
@@ -300,12 +307,12 @@ export default function App() {
                     <div
                       style={{
                         fontSize: 13,
-                        color: date === today ? "#a0c4ff" : "#9090b0",
+                        color: date === today ? "#4a6fd4" : "#5a5a70",
                       }}
                     >
                       {getJPDate(date)}
                     </div>
-                    <div style={{ fontSize: 11, color: "#505065" }}>
+                    <div style={{ fontSize: 11, color: "#aab0c0" }}>
                       {getDayOfWeek(date)}
                     </div>
                     <span
@@ -313,18 +320,19 @@ export default function App() {
                         fontSize: 10,
                         background:
                           cycle.phase === "medication"
-                            ? "#193024"
+                            ? "#edfaf3"
                             : cycle.phase === "break"
-                              ? "#1f2238"
-                              : "#222233",
+                              ? "#eef3ff"
+                              : "#f4f4f8",
                         color:
                           cycle.phase === "medication"
-                            ? "#6be0a0"
+                            ? "#2a9060"
                             : cycle.phase === "break"
-                              ? "#a0c4ff"
-                              : "#8c8ca8",
+                              ? "#4a6fd4"
+                              : "#9096ab",
                         padding: "2px 7px",
                         borderRadius: 10,
+                        border: `1px solid ${cycle.phase === "medication" ? "#b8e8d0" : cycle.phase === "break" ? "#ccd9f5" : "#e0e4ed"}`,
                       }}
                     >
                       {cycle.label}
@@ -333,10 +341,11 @@ export default function App() {
                       <span
                         style={{
                           fontSize: 10,
-                          background: "#2e3150",
-                          color: "#a0c4ff",
+                          background: "#eef3ff",
+                          color: "#4a6fd4",
                           padding: "2px 7px",
                           borderRadius: 10,
+                          border: "1px solid #ccd9f5",
                         }}
                       >
                         今日
@@ -344,14 +353,14 @@ export default function App() {
                     )}
                   </div>
                   <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                    <div style={{ fontSize: 10, color: "#7f82a0" }}>
+                    <div style={{ fontSize: 10, color: "#9096ab" }}>
                       体温: {temperature !== "" ? `${temperature}℃` : "-"}
                     </div>
-                    <div style={{ fontSize: 10, color: "#7f82a0" }}>
+                    <div style={{ fontSize: 10, color: "#9096ab" }}>
                       食事: {mealAmount || "-"}
                     </div>
                   </div>
-                  <div style={{ fontSize: 10, color: "#646984", marginTop: -2 }}>
+                  <div style={{ fontSize: 10, color: "#b0b5c8", marginTop: -2 }}>
                     その他: {note || "-"}
                   </div>
                 </div>
@@ -366,18 +375,18 @@ export default function App() {
       )}
       {view === "record" && (
         <div style={{ width: "100%", maxWidth: 400, padding: "24px 24px 0" }}>
-          <div style={{ fontSize: 13, color: "#606080", marginBottom: 16 }}>
+          <div style={{ fontSize: 13, color: "#9096ab", marginBottom: 16 }}>
             {getJPDate(today)}（{getDayOfWeek(today)}）の記録
           </div>
           <div
             style={{
-              background: "#141620",
-              border: "1px solid #1a1a2a",
+              background: "#fff",
+              border: "1px solid #e0e4ed",
               borderRadius: 14,
               padding: 16,
             }}
           >
-            <div style={{ fontSize: 12, color: "#8d90ad", marginBottom: 8 }}>
+            <div style={{ fontSize: 12, color: "#9096ab", marginBottom: 8 }}>
               体温
             </div>
             <div
@@ -397,19 +406,19 @@ export default function App() {
                 onChange={(e) => updateTodayRecord("temperature", e.target.value)}
                 style={{
                   flex: 1,
-                  background: "#1a1c2a",
-                  border: "1px solid #2a2d40",
+                  background: "#f5f7fa",
+                  border: "1px solid #e0e4ed",
                   borderRadius: 10,
-                  color: "#e8e6f0",
+                  color: "#2d2d3a",
                   padding: "10px 12px",
                   fontSize: 14,
                   outline: "none",
                 }}
               />
-              <span style={{ fontSize: 13, color: "#9ba0be" }}>℃</span>
+              <span style={{ fontSize: 13, color: "#9096ab" }}>℃</span>
             </div>
 
-            <div style={{ fontSize: 12, color: "#8d90ad", marginBottom: 8 }}>
+            <div style={{ fontSize: 12, color: "#9096ab", marginBottom: 8 }}>
               食事の量
             </div>
             <div
@@ -428,14 +437,14 @@ export default function App() {
                     type="button"
                     onClick={() => updateTodayRecord("mealAmount", option)}
                     style={{
-                      border: "none",
+                      border: `1px solid ${selected ? "#ccd9f5" : "#e0e4ed"}`,
                       borderRadius: 10,
                       padding: "10px 8px",
                       fontSize: 12,
                       fontWeight: 600,
                       cursor: "pointer",
-                      background: selected ? "#2d3757" : "#1b1e2d",
-                      color: selected ? "#cfe2ff" : "#8084a4",
+                      background: selected ? "#eef3ff" : "#f5f7fa",
+                      color: selected ? "#4a6fd4" : "#9096ab",
                     }}
                   >
                     {option}
@@ -444,7 +453,7 @@ export default function App() {
               })}
             </div>
 
-            <div style={{ fontSize: 12, color: "#8d90ad", marginBottom: 8 }}>
+            <div style={{ fontSize: 12, color: "#9096ab", marginBottom: 8 }}>
               その他
             </div>
             <textarea
@@ -455,10 +464,10 @@ export default function App() {
               style={{
                 width: "100%",
                 resize: "vertical",
-                background: "#1a1c2a",
-                border: "1px solid #2a2d40",
+                background: "#f5f7fa",
+                border: "1px solid #e0e4ed",
                 borderRadius: 10,
-                color: "#e8e6f0",
+                color: "#2d2d3a",
                 padding: "10px 12px",
                 fontSize: 13,
                 lineHeight: 1.6,
@@ -473,7 +482,7 @@ export default function App() {
   );
 }
 
-function DoseCard({ label, icon, done, flash, onToggle }) {
+function DoseCard({ label, image, done, flash, onToggle }) {
   return (
     <button
       onClick={onToggle}
@@ -481,15 +490,14 @@ function DoseCard({ label, icon, done, flash, onToggle }) {
         width: "100%",
         padding: "20px",
         borderRadius: 18,
-        border: `2px solid ${done ? "#2d6040" : "#252535"}`,
-        background: done
-          ? "linear-gradient(135deg,#162b1e,#111d17)"
-          : "#141620",
+        border: `2px solid ${done ? "#b8e8d0" : "#e0e4ed"}`,
+        background: done ? "#edfaf3" : "#fff",
         display: "flex",
         alignItems: "center",
         gap: 16,
         cursor: "pointer",
         textAlign: "left",
+        boxShadow: done ? "0 2px 10px rgba(42,144,96,0.08)" : "0 1px 4px rgba(0,0,0,0.05)",
       }}
     >
       <div
@@ -497,22 +505,26 @@ function DoseCard({ label, icon, done, flash, onToggle }) {
           width: 52,
           height: 52,
           borderRadius: 14,
-          background: done ? "#1e4030" : "#1a1c2a",
+          background: done ? "#d4f4e6" : "#f0f2f8",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          fontSize: 24,
           flexShrink: 0,
+          overflow: "hidden",
         }}
       >
-        {icon}
+        <img
+          src={image}
+          alt={label}
+          style={{ width: 36, height: 36, objectFit: "contain" }}
+        />
       </div>
       <div style={{ flex: 1 }}>
         <div
           style={{
             fontSize: 16,
             fontWeight: 700,
-            color: done ? "#6be0a0" : "#c0c0d8",
+            color: done ? "#2a9060" : "#2d2d3a",
           }}
         >
           {label}
@@ -520,7 +532,7 @@ function DoseCard({ label, icon, done, flash, onToggle }) {
         <div
           style={{
             fontSize: 12,
-            color: done ? "#4a9060" : "#505065",
+            color: done ? "#7abfa0" : "#aab0c0",
             marginTop: 3,
           }}
         >
@@ -532,8 +544,8 @@ function DoseCard({ label, icon, done, flash, onToggle }) {
           width: 28,
           height: 28,
           borderRadius: 8,
-          border: `2px solid ${done ? "#3a8060" : "#303050"}`,
-          background: done ? "#3a8060" : "transparent",
+          border: `2px solid ${done ? "#2a9060" : "#d0d5e8"}`,
+          background: done ? "#2a9060" : "transparent",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
@@ -563,11 +575,11 @@ function Dot({ done, label }) {
           width: 10,
           height: 10,
           borderRadius: "50%",
-          background: done ? "#4a9060" : "#2a2a3a",
-          border: `1px solid ${done ? "#6be0a0" : "#353545"}`,
+          background: done ? "#2a9060" : "#e0e4ed",
+          border: `1px solid ${done ? "#6be0a0" : "#d0d5e8"}`,
         }}
       />
-      <div style={{ fontSize: 9, color: "#404055" }}>{label}</div>
+      <div style={{ fontSize: 9, color: "#aab0c0" }}>{label}</div>
     </div>
   );
 }
