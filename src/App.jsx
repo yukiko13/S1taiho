@@ -176,7 +176,7 @@ export default function App() {
           maxWidth: 400,
         }}
       >
-        {["today", "history", "record"].map((v) => (
+        {["today", "schedule", "history", "record"].map((v) => (
           <button
             key={v}
             onClick={() => setView(v)}
@@ -187,13 +187,13 @@ export default function App() {
               border: "none",
               background: view === v ? "#fff" : "transparent",
               color: view === v ? "#2d2d3a" : "#9096ab",
-              fontSize: 13,
+              fontSize: 12,
               fontWeight: 600,
               cursor: "pointer",
               boxShadow: view === v ? "0 1px 4px rgba(0,0,0,0.08)" : "none",
             }}
           >
-            {v === "today" ? "今日" : v === "history" ? "履歴" : "記録"}
+            {v === "today" ? "今日" : v === "schedule" ? "予定" : v === "history" ? "履歴" : "記録"}
           </button>
         ))}
       </div>
@@ -310,6 +310,9 @@ export default function App() {
             </div>
           )}
         </div>
+      )}
+      {view === "schedule" && (
+        <ScheduleView today={today} />
       )}
       {view === "history" && (
         <div style={{ width: "100%", maxWidth: 400, padding: "24px 24px 0" }}>
@@ -593,6 +596,130 @@ function DoseCard({ label, image, done, flash, onToggle }) {
         {done ? "✓" : ""}
       </div>
     </button>
+  );
+}
+
+function ScheduleView({ today }) {
+  const DOW = ["日", "月", "火", "水", "木", "金", "土"];
+
+  const schedDays = [];
+  const start = new Date(today + "T00:00:00");
+  for (let i = 0; i <= 30; i++) {
+    const d = new Date(start);
+    d.setDate(start.getDate() + i);
+    schedDays.push(d.toISOString().slice(0, 10));
+  }
+
+  const byMonth = {};
+  for (const dateStr of schedDays) {
+    const key = dateStr.slice(0, 7);
+    if (!byMonth[key]) byMonth[key] = [];
+    byMonth[key].push(dateStr);
+  }
+
+  return (
+    <div style={{ width: "100%", maxWidth: 400, padding: "24px 24px 0" }}>
+      <div style={{ display: "flex", gap: 16, marginBottom: 20, fontSize: 12 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <div style={{ width: 12, height: 12, borderRadius: 3, background: "#2a9060" }} />
+          <span style={{ color: "#5a5a70" }}>服薬日</span>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <div style={{ width: 12, height: 12, borderRadius: 3, background: "#c8ccd8" }} />
+          <span style={{ color: "#5a5a70" }}>休薬日</span>
+        </div>
+      </div>
+      {Object.entries(byMonth).map(([monthKey, dates]) => {
+        const [year, month] = monthKey.split("-").map(Number);
+        const firstDate = new Date(year, month - 1, 1);
+        const startDow = firstDate.getDay();
+        const lastDay = new Date(year, month, 0).getDate();
+
+        const cells = [];
+        for (let i = 0; i < startDow; i++) cells.push(null);
+        for (let d = 1; d <= lastDay; d++) {
+          const dateStr = `${year}-${String(month).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+          cells.push(dateStr);
+        }
+
+        return (
+          <div key={monthKey} style={{ marginBottom: 24 }}>
+            <div style={{ fontSize: 14, fontWeight: 700, color: "#2d2d3a", marginBottom: 12 }}>
+              {year}年{month}月
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 4, marginBottom: 6 }}>
+              {DOW.map((d, i) => (
+                <div
+                  key={d}
+                  style={{
+                    textAlign: "center",
+                    fontSize: 11,
+                    fontWeight: 600,
+                    color: i === 0 ? "#e05050" : i === 6 ? "#4a6fd4" : "#9096ab",
+                    paddingBottom: 4,
+                  }}
+                >
+                  {d}
+                </div>
+              ))}
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 4 }}>
+              {cells.map((dateStr, idx) => {
+                if (!dateStr) return <div key={`empty-${idx}`} />;
+                const inRange = schedDays.includes(dateStr);
+                const cycle = getCycleStatus(dateStr);
+                const isToday = dateStr === today;
+                const isMed = cycle.phase === "medication";
+                const isBreak = cycle.phase === "break";
+                const dow = new Date(dateStr + "T00:00:00").getDay();
+                const dayNum = parseInt(dateStr.slice(8), 10);
+
+                let bg = "#f0f2f8";
+                let color = "#c0c4d0";
+                if (inRange) {
+                  if (isMed) { bg = "#edfaf3"; color = "#2a9060"; }
+                  else if (isBreak) { bg = "#e8eaf0"; color = "#8890a8"; }
+                }
+                if (!inRange) { bg = "transparent"; color = "#d0d4de"; }
+
+                return (
+                  <div
+                    key={dateStr}
+                    style={{
+                      aspectRatio: "1",
+                      borderRadius: 8,
+                      background: isToday ? (isMed ? "#2a9060" : "#7a88c0") : bg,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      flexDirection: "column",
+                      gap: 2,
+                      border: isToday ? "none" : inRange ? `1px solid ${isMed ? "#b8e8d0" : "#d8dae8"}` : "none",
+                    }}
+                  >
+                    <span
+                      style={{
+                        fontSize: 13,
+                        fontWeight: isToday ? 700 : 500,
+                        color: isToday ? "#fff" : inRange ? (dow === 0 ? "#e05050" : dow === 6 ? "#4a6fd4" : color) : "#d0d4de",
+                        lineHeight: 1,
+                      }}
+                    >
+                      {dayNum}
+                    </span>
+                    {inRange && (
+                      <span style={{ fontSize: 8, color: isToday ? "rgba(255,255,255,0.8)" : isMed ? "#7abfa0" : "#b0b4c8", lineHeight: 1 }}>
+                        {isMed ? `服${cycle.dayNumber}` : "休"}
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
+    </div>
   );
 }
 
