@@ -1,7 +1,8 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
+import { supabase } from "./supabaseClient";
 
 const STORAGE_KEY = "s1taiho-log";
-const CYCLE_START_DATE = "2026-05-01";
+const DEFAULT_CYCLE_START = "2026-05-01";
 const MEDICATION_DAYS = 14;
 const BREAK_DAYS = 7;
 const CYCLE_DAYS = MEDICATION_DAYS + BREAK_DAYS;
@@ -21,9 +22,9 @@ function getDayOfWeek(dateStr) {
   return days[new Date(dateStr + "T00:00:00").getDay()];
 }
 
-function getAllDaysSinceStart() {
+function getAllDaysSinceStart(cycleStart) {
   const days = [];
-  const start = new Date(CYCLE_START_DATE + "T00:00:00");
+  const start = new Date(cycleStart + "T00:00:00");
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const d = new Date(start);
@@ -34,76 +35,314 @@ function getAllDaysSinceStart() {
   return days;
 }
 
-function getCycleStatus(dateStr) {
+function getCycleStatus(dateStr, cycleStart) {
   const targetDate = new Date(dateStr + "T00:00:00");
-  const startDate = new Date(CYCLE_START_DATE + "T00:00:00");
+  const startDate = new Date(cycleStart + "T00:00:00");
   const diffDays = Math.floor((targetDate - startDate) / 86400000);
 
-  if (diffDays < 0) {
-    return { phase: "before", label: "開始前" };
-  }
+  if (diffDays < 0) return { phase: "before", label: "開始前" };
 
   const dayInCycle = diffDays % CYCLE_DAYS;
-
   if (dayInCycle < MEDICATION_DAYS) {
-    return {
-      phase: "medication",
-      dayNumber: dayInCycle + 1,
-      label: "服薬期間",
-    };
+    return { phase: "medication", dayNumber: dayInCycle + 1, label: "服薬期間" };
   }
-
-  return {
-    phase: "break",
-    remainingDays: CYCLE_DAYS - dayInCycle,
-    label: "休薬期間",
-  };
+  return { phase: "break", remainingDays: CYCLE_DAYS - dayInCycle, label: "休薬期間" };
 }
 
+// ─── Auth Screen ───────────────────────────────────────────────────────────
+
+function AuthScreen({ onAuth }) {
+  const [mode, setMode] = useState("login");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState("");
+
+  const inputStyle = {
+    width: "100%",
+    background: "#f5f7fa",
+    border: "1px solid #e0e4ed",
+    borderRadius: 10,
+    color: "#2d2d3a",
+    padding: "12px 14px",
+    fontSize: 15,
+    outline: "none",
+    boxSizing: "border-box",
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError("");
+    setMessage("");
+    setLoading(true);
+    try {
+      if (mode === "login") {
+        const { error } = await supabase.auth.signInWithPassword({ email, password });
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.auth.signUp({ email, password });
+        if (error) throw error;
+        setMessage("確認メールを送りました。メールのリンクをクリックしてからログインしてください。");
+        setMode("login");
+        setLoading(false);
+        return;
+      }
+    } catch (err) {
+      setError(err.message);
+    }
+    setLoading(false);
+  };
+
+  return (
+    <div
+      style={{
+        minHeight: "100vh",
+        background: "#f5f7fa",
+        fontFamily: "'Hiragino Sans','Yu Gothic',sans-serif",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: "0 24px",
+      }}
+    >
+      <div style={{ marginBottom: 32, textAlign: "center" }}>
+        <div style={{ fontSize: 11, letterSpacing: 3, color: "#9096ab", marginBottom: 6 }}>
+          服薬記録
+        </div>
+        <div style={{ fontSize: 26, fontWeight: 700, color: "#2d2d3a" }}>
+          エスワンタイホウ
+        </div>
+      </div>
+      <div
+        style={{
+          width: "100%",
+          maxWidth: 360,
+          background: "#fff",
+          borderRadius: 18,
+          padding: 28,
+          border: "1px solid #e0e4ed",
+        }}
+      >
+        <div style={{ display: "flex", gap: 0, marginBottom: 24, background: "#e8ecf5", borderRadius: 10, padding: 3 }}>
+          {["login", "register"].map((m) => (
+            <button
+              key={m}
+              onClick={() => { setMode(m); setError(""); setMessage(""); }}
+              style={{
+                flex: 1, padding: "8px 0", borderRadius: 8, border: "none",
+                background: mode === m ? "#fff" : "transparent",
+                color: mode === m ? "#2d2d3a" : "#9096ab",
+                fontSize: 13, fontWeight: 600, cursor: "pointer",
+                boxShadow: mode === m ? "0 1px 4px rgba(0,0,0,0.08)" : "none",
+              }}
+            >
+              {m === "login" ? "ログイン" : "新規登録"}
+            </button>
+          ))}
+        </div>
+        <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          <div>
+            <div style={{ fontSize: 12, color: "#9096ab", marginBottom: 6 }}>メールアドレス</div>
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="example@email.com"
+              required
+              style={inputStyle}
+            />
+          </div>
+          <div>
+            <div style={{ fontSize: 12, color: "#9096ab", marginBottom: 6 }}>パスワード</div>
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="6文字以上"
+              required
+              minLength={6}
+              style={inputStyle}
+            />
+          </div>
+          {error && (
+            <div style={{ fontSize: 12, color: "#c0392b", background: "#fdf0ee", borderRadius: 8, padding: "8px 12px" }}>
+              {error}
+            </div>
+          )}
+          {message && (
+            <div style={{ fontSize: 12, color: "#2a9060", background: "#edfaf3", borderRadius: 8, padding: "8px 12px" }}>
+              {message}
+            </div>
+          )}
+          <button
+            type="submit"
+            disabled={loading}
+            style={{
+              padding: "13px 0",
+              borderRadius: 12,
+              border: "none",
+              background: loading ? "#b8e8d0" : "#2a9060",
+              color: "#fff",
+              fontSize: 15,
+              fontWeight: 700,
+              cursor: loading ? "default" : "pointer",
+              marginTop: 4,
+            }}
+          >
+            {loading ? "処理中..." : mode === "login" ? "ログイン" : "登録する"}
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// ─── Main App ──────────────────────────────────────────────────────────────
+
 export default function App() {
+  const [session, setSession] = useState(undefined); // undefined = loading
   const [log, setLog] = useState({});
+  const [cycleStart, setCycleStart] = useState(DEFAULT_CYCLE_START);
   const [today] = useState(getTodayKey());
   const [view, setView] = useState("today");
   const [justTook, setJustTook] = useState(null);
+  const [syncing, setSyncing] = useState(false);
 
+  // Auth listener
   useEffect(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) setLog(JSON.parse(saved));
-    } catch {}
+    supabase.auth.getSession().then(({ data: { session } }) => setSession(session));
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+    });
+    return () => subscription.unsubscribe();
   }, []);
 
-  const save = (newLog) => {
-    setLog(newLog);
+  // Load data when session changes
+  useEffect(() => {
+    if (!session) {
+      // Fall back to localStorage when logged out
+      try {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (saved) setLog(JSON.parse(saved));
+      } catch {}
+      setCycleStart(DEFAULT_CYCLE_START);
+      return;
+    }
+    loadFromSupabase(session.user.id);
+  }, [session]);
+
+  const loadFromSupabase = async (userId) => {
+    setSyncing(true);
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(newLog));
-    } catch {}
+      // Load settings
+      const { data: settings } = await supabase
+        .from("sltaiho_user_settings")
+        .select("cycle_start_date")
+        .eq("user_id", userId)
+        .maybeSingle();
+      if (settings?.cycle_start_date) setCycleStart(settings.cycle_start_date);
+
+      // Load all logs
+      const { data: logs } = await supabase
+        .from("sltaiho_logs")
+        .select("date,morning,night,temperature,meal_amount,note")
+        .eq("user_id", userId);
+      if (logs) {
+        const mapped = {};
+        for (const row of logs) {
+          mapped[row.date] = {
+            morning: row.morning,
+            night: row.night,
+            temperature: row.temperature ?? "",
+            mealAmount: row.meal_amount ?? "",
+            note: row.note ?? "",
+          };
+        }
+        setLog(mapped);
+      }
+    } finally {
+      setSyncing(false);
+    }
   };
 
-  const toggle = (date, slot) => {
+  const upsertLog = useCallback(async (date, data) => {
+    if (!session) return;
+    await supabase.from("sltaiho_logs").upsert({
+      user_id: session.user.id,
+      date,
+      morning: data.morning ?? false,
+      night: data.night ?? false,
+      temperature: data.temperature !== "" ? data.temperature : null,
+      meal_amount: data.mealAmount || null,
+      note: data.note || null,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: "user_id,date" });
+  }, [session]);
+
+  const saveLocal = (newLog) => {
+    setLog(newLog);
+    if (!session) {
+      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(newLog)); } catch {}
+    }
+  };
+
+  const toggle = async (date, slot) => {
     const current = log[date] || {};
     const newVal = !current[slot];
-    const newLog = { ...log, [date]: { ...current, [slot]: newVal } };
-    save(newLog);
+    const updated = { ...current, [slot]: newVal };
+    const newLog = { ...log, [date]: updated };
+    saveLocal(newLog);
     if (newVal) {
       setJustTook(slot);
       setTimeout(() => setJustTook(null), 1800);
     }
+    await upsertLog(date, updated);
   };
 
-  const updateTodayRecord = (field, value) => {
+  const updateTodayRecord = async (field, value) => {
     const current = log[today] || {};
-    const newLog = { ...log, [today]: { ...current, [field]: value } };
-    save(newLog);
+    const updated = { ...current, [field]: value };
+    const newLog = { ...log, [today]: updated };
+    saveLocal(newLog);
+    await upsertLog(today, updated);
   };
+
+  const saveCycleStart = async (dateStr) => {
+    setCycleStart(dateStr);
+    if (!session) return;
+    await supabase.from("sltaiho_user_settings").upsert({
+      user_id: session.user.id,
+      cycle_start_date: dateStr,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: "user_id" });
+  };
+
+  const handleSignOut = async () => {
+    await supabase.auth.signOut();
+    setLog({});
+    setCycleStart(DEFAULT_CYCLE_START);
+  };
+
+  // Loading state
+  if (session === undefined) {
+    return (
+      <div style={{ minHeight: "100vh", background: "#f5f7fa", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'Hiragino Sans','Yu Gothic',sans-serif", color: "#9096ab" }}>
+        読み込み中...
+      </div>
+    );
+  }
+
+  if (!session) return <AuthScreen onAuth={() => {}} />;
 
   const todayData = log[today] || {};
   const morningDone = !!todayData.morning;
   const nightDone = !!todayData.night;
   const bothDone = morningDone && nightDone;
 
-  const days = getAllDaysSinceStart();
-  const todayCycle = getCycleStatus(today);
+  const days = getAllDaysSinceStart(cycleStart);
+  const todayCycle = getCycleStatus(today, cycleStart);
   const streak = (() => {
     let s = 0;
     for (let i = days.length - 1; i >= 0; i--) {
@@ -128,6 +367,7 @@ export default function App() {
         padding: "0 0 60px",
       }}
     >
+      {/* Header */}
       <div
         style={{
           width: "100%",
@@ -139,12 +379,19 @@ export default function App() {
           background: "#fff",
         }}
       >
-        <div style={{ fontSize: 11, letterSpacing: 3, color: "#9096ab" }}>
-          服薬記録
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+          <div>
+            <div style={{ fontSize: 11, letterSpacing: 3, color: "#9096ab" }}>服薬記録</div>
+            <div style={{ fontSize: 22, fontWeight: 700, color: "#2d2d3a" }}>エスワンタイホウ</div>
+          </div>
+          <button
+            onClick={handleSignOut}
+            style={{ fontSize: 11, color: "#9096ab", background: "none", border: "1px solid #e0e4ed", borderRadius: 8, padding: "5px 10px", cursor: "pointer" }}
+          >
+            ログアウト
+          </button>
         </div>
-        <div style={{ fontSize: 22, fontWeight: 700, color: "#2d2d3a" }}>
-          エスワンタイホウ
-        </div>
+        {syncing && <div style={{ fontSize: 11, color: "#9096ab" }}>同期中...</div>}
         {streak > 0 && (
           <div
             style={{
@@ -164,6 +411,8 @@ export default function App() {
           </div>
         )}
       </div>
+
+      {/* Tab bar */}
       <div
         style={{
           display: "flex",
@@ -176,7 +425,7 @@ export default function App() {
           maxWidth: 400,
         }}
       >
-        {["today", "schedule", "history", "record"].map((v) => (
+        {["today", "schedule", "history", "record", "settings"].map((v) => (
           <button
             key={v}
             onClick={() => setView(v)}
@@ -187,16 +436,18 @@ export default function App() {
               border: "none",
               background: view === v ? "#fff" : "transparent",
               color: view === v ? "#2d2d3a" : "#9096ab",
-              fontSize: 12,
+              fontSize: 11,
               fontWeight: 600,
               cursor: "pointer",
               boxShadow: view === v ? "0 1px 4px rgba(0,0,0,0.08)" : "none",
             }}
           >
-            {v === "today" ? "今日" : v === "schedule" ? "予定" : v === "history" ? "履歴" : "記録"}
+            {v === "today" ? "今日" : v === "schedule" ? "予定" : v === "history" ? "履歴" : v === "record" ? "記録" : "設定"}
           </button>
         ))}
       </div>
+
+      {/* Today tab */}
       {view === "today" && (
         <div style={{ width: "100%", maxWidth: 400, padding: "24px 24px 0" }}>
           <div style={{ fontSize: 13, color: "#9096ab", marginBottom: 20 }}>
@@ -235,15 +486,9 @@ export default function App() {
                 boxShadow: "0 2px 12px rgba(74,111,212,0.08)",
               }}
             >
-              <img
-                src="/rest.png"
-                alt="休薬中"
-                style={{ width: 80, height: 80, objectFit: "contain" }}
-              />
+              <img src="/rest.png" alt="休薬中" style={{ width: 80, height: 80, objectFit: "contain" }} />
               <div style={{ textAlign: "center" }}>
-                <div style={{ fontWeight: 700, color: "#4a6fd4", fontSize: 18 }}>
-                  休薬中
-                </div>
+                <div style={{ fontWeight: 700, color: "#4a6fd4", fontSize: 18 }}>休薬中</div>
                 <div style={{ fontSize: 13, color: "#9096ab", marginTop: 6 }}>
                   あと{todayCycle.remainingDays}日でお薬が再開します
                 </div>
@@ -251,21 +496,9 @@ export default function App() {
             </div>
           ) : (
             <>
-          <DoseCard
-            label="朝食後"
-            image="/morning.png"
-            done={morningDone}
-            flash={justTook === "morning"}
-            onToggle={() => toggle(today, "morning")}
-          />
-          <div style={{ height: 12 }} />
-          <DoseCard
-            label="夕食後"
-            image="/evening.png"
-            done={nightDone}
-            flash={justTook === "night"}
-            onToggle={() => toggle(today, "night")}
-          />
+              <DoseCard label="朝食後" image="/morning.png" done={morningDone} flash={justTook === "morning"} onToggle={() => toggle(today, "morning")} />
+              <div style={{ height: 12 }} />
+              <DoseCard label="夕食後" image="/evening.png" done={nightDone} flash={justTook === "night"} onToggle={() => toggle(today, "night")} />
             </>
           )}
           {bothDone && todayCycle.phase !== "break" && (
@@ -282,48 +515,30 @@ export default function App() {
                 boxShadow: "0 2px 12px rgba(42,144,96,0.10)",
               }}
             >
-              <img
-                src="/happy.png"
-                alt="完了"
-                style={{ width: 52, height: 52, objectFit: "contain", flexShrink: 0 }}
-              />
+              <img src="/happy.png" alt="完了" style={{ width: 52, height: 52, objectFit: "contain", flexShrink: 0 }} />
               <div>
-                <div
-                  style={{
-                    fontWeight: 700,
-                    color: "#2a9060",
-                    fontSize: 15,
-                  }}
-                >
-                  今日の服薬完了！
-                </div>
-                <div
-                  style={{
-                    fontSize: 12,
-                    color: "#7abfa0",
-                    marginTop: 2,
-                  }}
-                >
-                  お疲れさまでした
-                </div>
+                <div style={{ fontWeight: 700, color: "#2a9060", fontSize: 15 }}>今日の服薬完了！</div>
+                <div style={{ fontSize: 12, color: "#7abfa0", marginTop: 2 }}>お疲れさまでした</div>
               </div>
             </div>
           )}
         </div>
       )}
-      {view === "schedule" && (
-        <ScheduleView today={today} />
-      )}
+
+      {/* Schedule tab */}
+      {view === "schedule" && <ScheduleView today={today} cycleStart={cycleStart} />}
+
+      {/* History tab */}
       {view === "history" && (
         <div style={{ width: "100%", maxWidth: 400, padding: "24px 24px 0" }}>
           <div style={{ fontSize: 12, color: "#9096ab", marginBottom: 16 }}>
-            2026年5月1日から（全{days.length}日）
+            {cycleStart}から（全{days.length}日）
           </div>
           {[...days].reverse().map((date) => {
             const d = log[date] || {};
             const m = !!d.morning;
             const n = !!d.night;
-            const cycle = getCycleStatus(date);
+            const cycle = getCycleStatus(date, cycleStart);
             const temperature = d.temperature ?? "";
             const mealAmount = d.mealAmount ?? "";
             const note = (d.note ?? "").trim();
@@ -343,32 +558,15 @@ export default function App() {
               >
                 <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                    <div
-                      style={{
-                        fontSize: 13,
-                        color: date === today ? "#4a6fd4" : "#5a5a70",
-                      }}
-                    >
+                    <div style={{ fontSize: 13, color: date === today ? "#4a6fd4" : "#5a5a70" }}>
                       {getJPDate(date)}
                     </div>
-                    <div style={{ fontSize: 11, color: "#aab0c0" }}>
-                      {getDayOfWeek(date)}
-                    </div>
+                    <div style={{ fontSize: 11, color: "#aab0c0" }}>{getDayOfWeek(date)}</div>
                     <span
                       style={{
                         fontSize: 10,
-                        background:
-                          cycle.phase === "medication"
-                            ? "#edfaf3"
-                            : cycle.phase === "break"
-                              ? "#eef3ff"
-                              : "#f4f4f8",
-                        color:
-                          cycle.phase === "medication"
-                            ? "#2a9060"
-                            : cycle.phase === "break"
-                              ? "#4a6fd4"
-                              : "#9096ab",
+                        background: cycle.phase === "medication" ? "#edfaf3" : cycle.phase === "break" ? "#eef3ff" : "#f4f4f8",
+                        color: cycle.phase === "medication" ? "#2a9060" : cycle.phase === "break" ? "#4a6fd4" : "#9096ab",
                         padding: "2px 7px",
                         borderRadius: 10,
                         border: `1px solid ${cycle.phase === "medication" ? "#b8e8d0" : cycle.phase === "break" ? "#ccd9f5" : "#e0e4ed"}`,
@@ -377,31 +575,16 @@ export default function App() {
                       {cycle.label}
                     </span>
                     {date === today && (
-                      <span
-                        style={{
-                          fontSize: 10,
-                          background: "#eef3ff",
-                          color: "#4a6fd4",
-                          padding: "2px 7px",
-                          borderRadius: 10,
-                          border: "1px solid #ccd9f5",
-                        }}
-                      >
+                      <span style={{ fontSize: 10, background: "#eef3ff", color: "#4a6fd4", padding: "2px 7px", borderRadius: 10, border: "1px solid #ccd9f5" }}>
                         今日
                       </span>
                     )}
                   </div>
                   <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                    <div style={{ fontSize: 10, color: "#9096ab" }}>
-                      体温: {temperature !== "" ? `${temperature}℃` : "-"}
-                    </div>
-                    <div style={{ fontSize: 10, color: "#9096ab" }}>
-                      食事: {mealAmount || "-"}
-                    </div>
+                    <div style={{ fontSize: 10, color: "#9096ab" }}>体温: {temperature !== "" ? `${temperature}℃` : "-"}</div>
+                    <div style={{ fontSize: 10, color: "#9096ab" }}>食事: {mealAmount || "-"}</div>
                   </div>
-                  <div style={{ fontSize: 10, color: "#b0b5c8", marginTop: -2 }}>
-                    その他: {note || "-"}
-                  </div>
+                  <div style={{ fontSize: 10, color: "#b0b5c8", marginTop: -2 }}>その他: {note || "-"}</div>
                 </div>
                 <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                   <Dot done={m} label="朝" />
@@ -412,30 +595,16 @@ export default function App() {
           })}
         </div>
       )}
+
+      {/* Record tab */}
       {view === "record" && (
         <div style={{ width: "100%", maxWidth: 400, padding: "24px 24px 0" }}>
           <div style={{ fontSize: 13, color: "#9096ab", marginBottom: 16 }}>
             {getJPDate(today)}（{getDayOfWeek(today)}）の記録
           </div>
-          <div
-            style={{
-              background: "#fff",
-              border: "1px solid #e0e4ed",
-              borderRadius: 14,
-              padding: 16,
-            }}
-          >
-            <div style={{ fontSize: 12, color: "#9096ab", marginBottom: 8 }}>
-              体温
-            </div>
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 8,
-                marginBottom: 16,
-              }}
-            >
+          <div style={{ background: "#fff", border: "1px solid #e0e4ed", borderRadius: 14, padding: 16 }}>
+            <div style={{ fontSize: 12, color: "#9096ab", marginBottom: 8 }}>体温</div>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
               <input
                 type="number"
                 inputMode="decimal"
@@ -443,31 +612,12 @@ export default function App() {
                 placeholder="例: 36.8"
                 value={todayData.temperature ?? ""}
                 onChange={(e) => updateTodayRecord("temperature", e.target.value)}
-                style={{
-                  flex: 1,
-                  background: "#f5f7fa",
-                  border: "1px solid #e0e4ed",
-                  borderRadius: 10,
-                  color: "#2d2d3a",
-                  padding: "10px 12px",
-                  fontSize: 14,
-                  outline: "none",
-                }}
+                style={{ flex: 1, background: "#f5f7fa", border: "1px solid #e0e4ed", borderRadius: 10, color: "#2d2d3a", padding: "10px 12px", fontSize: 14, outline: "none" }}
               />
               <span style={{ fontSize: 13, color: "#9096ab" }}>℃</span>
             </div>
-
-            <div style={{ fontSize: 12, color: "#9096ab", marginBottom: 8 }}>
-              食事の量
-            </div>
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-                gap: 8,
-                marginBottom: 16,
-              }}
-            >
+            <div style={{ fontSize: 12, color: "#9096ab", marginBottom: 8 }}>食事の量</div>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 8, marginBottom: 16 }}>
               {MEAL_OPTIONS.map((option) => {
                 const selected = todayData.mealAmount === option;
                 return (
@@ -477,10 +627,7 @@ export default function App() {
                     onClick={() => updateTodayRecord("mealAmount", option)}
                     style={{
                       border: `1px solid ${selected ? "#ccd9f5" : "#e0e4ed"}`,
-                      borderRadius: 10,
-                      padding: "10px 8px",
-                      fontSize: 12,
-                      fontWeight: 600,
+                      borderRadius: 10, padding: "10px 8px", fontSize: 12, fontWeight: 600,
                       cursor: "pointer",
                       background: selected ? "#eef3ff" : "#f5f7fa",
                       color: selected ? "#4a6fd4" : "#9096ab",
@@ -491,115 +638,99 @@ export default function App() {
                 );
               })}
             </div>
-
-            <div style={{ fontSize: 12, color: "#9096ab", marginBottom: 8 }}>
-              その他
-            </div>
+            <div style={{ fontSize: 12, color: "#9096ab", marginBottom: 8 }}>その他</div>
             <textarea
               placeholder="メモを入力"
               value={todayData.note ?? ""}
               onChange={(e) => updateTodayRecord("note", e.target.value)}
               rows={4}
               style={{
-                width: "100%",
-                resize: "vertical",
-                background: "#f5f7fa",
-                border: "1px solid #e0e4ed",
-                borderRadius: 10,
-                color: "#2d2d3a",
-                padding: "10px 12px",
-                fontSize: 13,
-                lineHeight: 1.6,
-                boxSizing: "border-box",
-                outline: "none",
+                width: "100%", resize: "vertical",
+                background: "#f5f7fa", border: "1px solid #e0e4ed", borderRadius: 10,
+                color: "#2d2d3a", padding: "10px 12px", fontSize: 13, lineHeight: 1.6,
+                boxSizing: "border-box", outline: "none",
               }}
             />
           </div>
         </div>
       )}
+
+      {/* Settings tab */}
+      {view === "settings" && (
+        <SettingsView
+          session={session}
+          cycleStart={cycleStart}
+          onSaveCycleStart={saveCycleStart}
+        />
+      )}
     </div>
   );
 }
 
-function DoseCard({ label, image, done, flash, onToggle }) {
+// ─── Settings View ─────────────────────────────────────────────────────────
+
+function SettingsView({ session, cycleStart, onSaveCycleStart }) {
+  const [dateInput, setDateInput] = useState(cycleStart);
+  const [saved, setSaved] = useState(false);
+
+  const handleSave = async () => {
+    await onSaveCycleStart(dateInput);
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2000);
+  };
+
   return (
-    <button
-      onClick={onToggle}
-      style={{
-        width: "100%",
-        padding: "20px",
-        borderRadius: 18,
-        border: `2px solid ${done ? "#b8e8d0" : "#e0e4ed"}`,
-        background: done ? "#edfaf3" : "#fff",
-        display: "flex",
-        alignItems: "center",
-        gap: 16,
-        cursor: "pointer",
-        textAlign: "left",
-        boxShadow: done ? "0 2px 10px rgba(42,144,96,0.08)" : "0 1px 4px rgba(0,0,0,0.05)",
-      }}
-    >
-      <div
-        style={{
-          width: 52,
-          height: 52,
-          borderRadius: 14,
-          background: done ? "#d4f4e6" : "#f0f2f8",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          flexShrink: 0,
-          overflow: "hidden",
-        }}
-      >
-        <img
-          src={image}
-          alt={label}
-          style={{ width: 36, height: 36, objectFit: "contain" }}
+    <div style={{ width: "100%", maxWidth: 400, padding: "24px 24px 0" }}>
+      <div style={{ background: "#fff", border: "1px solid #e0e4ed", borderRadius: 14, padding: 20, marginBottom: 16 }}>
+        <div style={{ fontSize: 13, fontWeight: 700, color: "#2d2d3a", marginBottom: 4 }}>アカウント</div>
+        <div style={{ fontSize: 12, color: "#9096ab" }}>{session.user.email}</div>
+      </div>
+      <div style={{ background: "#fff", border: "1px solid #e0e4ed", borderRadius: 14, padding: 20 }}>
+        <div style={{ fontSize: 13, fontWeight: 700, color: "#2d2d3a", marginBottom: 12 }}>服薬開始日</div>
+        <div style={{ fontSize: 12, color: "#9096ab", marginBottom: 8 }}>
+          この日を起点に2週間服薬→1週間休薬のサイクルを計算します
+        </div>
+        <input
+          type="date"
+          value={dateInput}
+          onChange={(e) => setDateInput(e.target.value)}
+          style={{
+            width: "100%",
+            background: "#f5f7fa",
+            border: "1px solid #e0e4ed",
+            borderRadius: 10,
+            color: "#2d2d3a",
+            padding: "10px 12px",
+            fontSize: 14,
+            outline: "none",
+            boxSizing: "border-box",
+            marginBottom: 12,
+          }}
         />
-      </div>
-      <div style={{ flex: 1 }}>
-        <div
+        <button
+          onClick={handleSave}
           style={{
-            fontSize: 16,
+            width: "100%",
+            padding: "12px 0",
+            borderRadius: 12,
+            border: "none",
+            background: saved ? "#b8e8d0" : "#2a9060",
+            color: "#fff",
+            fontSize: 14,
             fontWeight: 700,
-            color: done ? "#2a9060" : "#2d2d3a",
+            cursor: "pointer",
           }}
         >
-          {label}
-        </div>
-        <div
-          style={{
-            fontSize: 12,
-            color: done ? "#7abfa0" : "#aab0c0",
-            marginTop: 3,
-          }}
-        >
-          {done ? "服用済み ✓" : "タップして記録"}
-        </div>
+          {saved ? "保存しました ✓" : "保存する"}
+        </button>
       </div>
-      <div
-        style={{
-          width: 28,
-          height: 28,
-          borderRadius: 8,
-          border: `2px solid ${done ? "#2a9060" : "#d0d5e8"}`,
-          background: done ? "#2a9060" : "transparent",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          fontSize: 14,
-          color: "#fff",
-          flexShrink: 0,
-        }}
-      >
-        {done ? "✓" : ""}
-      </div>
-    </button>
+    </div>
   );
 }
 
-function ScheduleView({ today }) {
+// ─── Schedule View ──────────────────────────────────────────────────────────
+
+function ScheduleView({ today, cycleStart }) {
   const DOW = ["日", "月", "火", "水", "木", "金", "土"];
 
   const schedDays = [];
@@ -609,7 +740,6 @@ function ScheduleView({ today }) {
     d.setDate(start.getDate() + i);
     schedDays.push(d.toISOString().slice(0, 10));
   }
-
   const schedSet = new Set(schedDays);
 
   const byMonth = {};
@@ -654,9 +784,7 @@ function ScheduleView({ today }) {
                 <div
                   key={d}
                   style={{
-                    textAlign: "center",
-                    fontSize: 11,
-                    fontWeight: 600,
+                    textAlign: "center", fontSize: 11, fontWeight: 600,
                     color: i === 0 ? "#e05050" : i === 6 ? "#4a6fd4" : "#9096ab",
                     paddingBottom: 4,
                   }}
@@ -669,7 +797,7 @@ function ScheduleView({ today }) {
               {cells.map((dateStr, idx) => {
                 if (!dateStr) return <div key={`empty-${idx}`} />;
                 const inRange = schedSet.has(dateStr);
-                const cycle = getCycleStatus(dateStr);
+                const cycle = getCycleStatus(dateStr, cycleStart);
                 const isToday = dateStr === today;
                 const isMed = cycle.phase === "medication";
                 const isBreak = cycle.phase === "break";
@@ -701,8 +829,7 @@ function ScheduleView({ today }) {
                   >
                     <span
                       style={{
-                        fontSize: 13,
-                        fontWeight: isToday ? 700 : 500,
+                        fontSize: 13, fontWeight: isToday ? 700 : 500,
                         color: isToday ? "#fff" : inRange ? (dow === 0 ? "#e05050" : dow === 6 ? "#4a6fd4" : color) : "#d0d4de",
                         lineHeight: 1,
                       }}
@@ -725,21 +852,65 @@ function ScheduleView({ today }) {
   );
 }
 
-function Dot({ done, label }) {
+// ─── DoseCard ───────────────────────────────────────────────────────────────
+
+function DoseCard({ label, image, done, onToggle }) {
   return (
-    <div
+    <button
+      onClick={onToggle}
       style={{
+        width: "100%",
+        padding: "20px",
+        borderRadius: 18,
+        border: `2px solid ${done ? "#b8e8d0" : "#e0e4ed"}`,
+        background: done ? "#edfaf3" : "#fff",
         display: "flex",
-        flexDirection: "column",
         alignItems: "center",
-        gap: 3,
+        gap: 16,
+        cursor: "pointer",
+        textAlign: "left",
+        boxShadow: done ? "0 2px 10px rgba(42,144,96,0.08)" : "0 1px 4px rgba(0,0,0,0.05)",
       }}
     >
       <div
         style={{
-          width: 10,
-          height: 10,
-          borderRadius: "50%",
+          width: 52, height: 52, borderRadius: 14,
+          background: done ? "#d4f4e6" : "#f0f2f8",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          flexShrink: 0, overflow: "hidden",
+        }}
+      >
+        <img src={image} alt={label} style={{ width: 36, height: 36, objectFit: "contain" }} />
+      </div>
+      <div style={{ flex: 1 }}>
+        <div style={{ fontSize: 16, fontWeight: 700, color: done ? "#2a9060" : "#2d2d3a" }}>{label}</div>
+        <div style={{ fontSize: 12, color: done ? "#7abfa0" : "#aab0c0", marginTop: 3 }}>
+          {done ? "服用済み ✓" : "タップして記録"}
+        </div>
+      </div>
+      <div
+        style={{
+          width: 28, height: 28, borderRadius: 8,
+          border: `2px solid ${done ? "#2a9060" : "#d0d5e8"}`,
+          background: done ? "#2a9060" : "transparent",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          fontSize: 14, color: "#fff", flexShrink: 0,
+        }}
+      >
+        {done ? "✓" : ""}
+      </div>
+    </button>
+  );
+}
+
+// ─── Dot ────────────────────────────────────────────────────────────────────
+
+function Dot({ done, label }) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }}>
+      <div
+        style={{
+          width: 10, height: 10, borderRadius: "50%",
           background: done ? "#2a9060" : "#e0e4ed",
           border: `1px solid ${done ? "#6be0a0" : "#d0d5e8"}`,
         }}
