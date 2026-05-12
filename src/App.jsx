@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "./supabaseClient";
 
 const STORAGE_KEY = "s1taiho-log";
@@ -209,6 +209,9 @@ export default function App() {
   const [view, setView] = useState("today");
   const [justTook, setJustTook] = useState(null);
   const [syncing, setSyncing] = useState(false);
+  const [notifyMorning, setNotifyMorning] = useState("");
+  const [notifyEvening, setNotifyEvening] = useState("");
+  const logRef = useRef(log);
 
   // Auth listener — INITIAL_SESSION fires on mount with the persisted session (or null)
   useEffect(() => {
@@ -238,10 +241,12 @@ export default function App() {
       // Load settings
       const { data: settings } = await supabase
         .from("sltaiho_user_settings")
-        .select("cycle_start_date")
+        .select("cycle_start_date,notify_morning,notify_evening")
         .eq("user_id", userId)
         .maybeSingle();
       if (settings?.cycle_start_date) setCycleStart(settings.cycle_start_date);
+      if (settings?.notify_morning) setNotifyMorning(settings.notify_morning.slice(0, 5));
+      if (settings?.notify_evening) setNotifyEvening(settings.notify_evening.slice(0, 5));
 
       // Load all logs
       const { data: logs } = await supabase
@@ -308,15 +313,69 @@ export default function App() {
     await upsertLog(today, updated);
   };
 
+  // Keep logRef in sync so the notification interval can read latest log without stale closure
+  useEffect(() => { logRef.current = log; }, [log]);
+
+  const upsertSettings = useCallback(async (fields) => {
+    if (!session) return;
+    await supabase.from("sltaiho_user_settings").upsert(
+      { user_id: session.user.id, updated_at: new Date().toISOString(), ...fields },
+      { onConflict: "user_id" }
+    );
+  }, [session]);
+
   const saveCycleStart = async (dateStr) => {
     setCycleStart(dateStr);
-    if (!session) return;
-    await supabase.from("sltaiho_user_settings").upsert({
-      user_id: session.user.id,
-      cycle_start_date: dateStr,
-      updated_at: new Date().toISOString(),
-    }, { onConflict: "user_id" });
+    await upsertSettings({ cycle_start_date: dateStr });
   };
+
+  const saveNotifyTimes = async (morning, evening) => {
+    setNotifyMorning(morning);
+    setNotifyEvening(evening);
+    await upsertSettings({
+      notify_morning: morning || null,
+      notify_evening: evening || null,
+    });
+  };
+
+  // Service Worker registration
+  useEffect(() => {
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.register("/sw.js").catch(() => {});
+    }
+  }, []);
+
+  // Notification scheduler — checks every minute
+  useEffect(() => {
+    if (!notifyMorning && !notifyEvening) return;
+
+    const sendNotification = async (slot, title, body, icon) => {
+      if (Notification.permission !== "granted") return;
+      const todayLog = logRef.current[getTodayKey()] || {};
+      if (todayLog[slot]) return; // already taken
+
+      const reg = await navigator.serviceWorker?.ready.catch(() => null);
+      if (reg) {
+        reg.active?.postMessage({ type: "NOTIFY", title, body, icon, tag: slot });
+      } else {
+        new Notification(title, { body, icon });
+      }
+    };
+
+    const check = () => {
+      const now = new Date();
+      const hhmm = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+      if (notifyMorning && hhmm === notifyMorning) {
+        sendNotification("morning", "朝の服薬時間です", "朝食後にエスワンタイホウを飲みましょう", "/morning.png");
+      }
+      if (notifyEvening && hhmm === notifyEvening) {
+        sendNotification("night", "夕の服薬時間です", "夕食後にエスワンタイホウを飲みましょう", "/evening.png");
+      }
+    };
+
+    const id = setInterval(check, 60000);
+    return () => clearInterval(id);
+  }, [notifyMorning, notifyEvening]);
 
   const handleSignOut = async () => {
     await supabase.auth.signOut();
@@ -660,6 +719,9 @@ export default function App() {
           session={session}
           cycleStart={cycleStart}
           onSaveCycleStart={saveCycleStart}
+          notifyMorning={notifyMorning}
+          notifyEvening={notifyEvening}
+          onSaveNotifyTimes={saveNotifyTimes}
         />
       )}
     </div>
@@ -668,24 +730,59 @@ export default function App() {
 
 // ─── Settings View ─────────────────────────────────────────────────────────
 
-function SettingsView({ session, cycleStart, onSaveCycleStart }) {
+function SettingsView({ session, cycleStart, onSaveCycleStart, notifyMorning, notifyEvening, onSaveNotifyTimes }) {
   const [dateInput, setDateInput] = useState(cycleStart);
-  const [saved, setSaved] = useState(false);
+  const [savedCycle, setSavedCycle] = useState(false);
+  const [morningInput, setMorningInput] = useState(notifyMorning);
+  const [eveningInput, setEveningInput] = useState(notifyEvening);
+  const [savedNotify, setSavedNotify] = useState(false);
+  const [permission, setPermission] = useState(
+    typeof Notification !== "undefined" ? Notification.permission : "unsupported"
+  );
 
-  const handleSave = async () => {
+  const handleSaveCycle = async () => {
     await onSaveCycleStart(dateInput);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+    setSavedCycle(true);
+    setTimeout(() => setSavedCycle(false), 2000);
   };
+
+  const requestPermission = async () => {
+    const result = await Notification.requestPermission();
+    setPermission(result);
+  };
+
+  const handleSaveNotify = async () => {
+    await onSaveNotifyTimes(morningInput, eveningInput);
+    setSavedNotify(true);
+    setTimeout(() => setSavedNotify(false), 2000);
+  };
+
+  const inputStyle = {
+    flex: 1,
+    background: "#f5f7fa",
+    border: "1px solid #e0e4ed",
+    borderRadius: 10,
+    color: "#2d2d3a",
+    padding: "10px 12px",
+    fontSize: 14,
+    outline: "none",
+    boxSizing: "border-box",
+  };
+
+  const permissionLabel = { granted: "許可済み ✓", denied: "拒否されています", default: "未設定", unsupported: "非対応" };
+  const permissionColor = { granted: "#2a9060", denied: "#c0392b", default: "#9096ab", unsupported: "#9096ab" };
 
   return (
     <div style={{ width: "100%", maxWidth: 400, padding: "24px 24px 0" }}>
+      {/* Account */}
       <div style={{ background: "#fff", border: "1px solid #e0e4ed", borderRadius: 14, padding: 20, marginBottom: 16 }}>
         <div style={{ fontSize: 13, fontWeight: 700, color: "#2d2d3a", marginBottom: 4 }}>アカウント</div>
         <div style={{ fontSize: 12, color: "#9096ab" }}>{session.user.email}</div>
       </div>
-      <div style={{ background: "#fff", border: "1px solid #e0e4ed", borderRadius: 14, padding: 20 }}>
-        <div style={{ fontSize: 13, fontWeight: 700, color: "#2d2d3a", marginBottom: 12 }}>服薬開始日</div>
+
+      {/* Cycle start date */}
+      <div style={{ background: "#fff", border: "1px solid #e0e4ed", borderRadius: 14, padding: 20, marginBottom: 16 }}>
+        <div style={{ fontSize: 13, fontWeight: 700, color: "#2d2d3a", marginBottom: 8 }}>服薬開始日</div>
         <div style={{ fontSize: 12, color: "#9096ab", marginBottom: 8 }}>
           この日を起点に2週間服薬→1週間休薬のサイクルを計算します
         </div>
@@ -693,35 +790,96 @@ function SettingsView({ session, cycleStart, onSaveCycleStart }) {
           type="date"
           value={dateInput}
           onChange={(e) => setDateInput(e.target.value)}
-          style={{
-            width: "100%",
-            background: "#f5f7fa",
-            border: "1px solid #e0e4ed",
-            borderRadius: 10,
-            color: "#2d2d3a",
-            padding: "10px 12px",
-            fontSize: 14,
-            outline: "none",
-            boxSizing: "border-box",
-            marginBottom: 12,
-          }}
+          style={{ ...inputStyle, flex: "none", width: "100%", marginBottom: 12 }}
         />
         <button
-          onClick={handleSave}
+          onClick={handleSaveCycle}
           style={{
-            width: "100%",
-            padding: "12px 0",
-            borderRadius: 12,
-            border: "none",
-            background: saved ? "#b8e8d0" : "#2a9060",
-            color: "#fff",
-            fontSize: 14,
-            fontWeight: 700,
-            cursor: "pointer",
+            width: "100%", padding: "12px 0", borderRadius: 12, border: "none",
+            background: savedCycle ? "#b8e8d0" : "#2a9060",
+            color: "#fff", fontSize: 14, fontWeight: 700, cursor: "pointer",
           }}
         >
-          {saved ? "保存しました ✓" : "保存する"}
+          {savedCycle ? "保存しました ✓" : "保存する"}
         </button>
+      </div>
+
+      {/* Notification settings */}
+      <div style={{ background: "#fff", border: "1px solid #e0e4ed", borderRadius: 14, padding: 20 }}>
+        <div style={{ fontSize: 13, fontWeight: 700, color: "#2d2d3a", marginBottom: 4 }}>服薬リマインダー</div>
+        <div style={{ fontSize: 12, color: "#9096ab", marginBottom: 14 }}>
+          服薬がまだの場合のみ通知します
+        </div>
+
+        {/* Permission status */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+          <div style={{ fontSize: 12, color: "#5a5a70" }}>
+            通知許可：
+            <span style={{ color: permissionColor[permission], fontWeight: 600 }}>
+              {permissionLabel[permission]}
+            </span>
+          </div>
+          {permission === "default" && (
+            <button
+              onClick={requestPermission}
+              style={{
+                fontSize: 12, padding: "6px 12px", borderRadius: 8, border: "1px solid #ccd9f5",
+                background: "#eef3ff", color: "#4a6fd4", cursor: "pointer", fontWeight: 600,
+              }}
+            >
+              許可する
+            </button>
+          )}
+        </div>
+
+        {/* Morning time */}
+        <div style={{ marginBottom: 12 }}>
+          <div style={{ fontSize: 12, color: "#9096ab", marginBottom: 6, display: "flex", alignItems: "center", gap: 6 }}>
+            <img src="/morning.png" style={{ width: 16, height: 16, objectFit: "contain" }} alt="" />
+            朝の通知時間
+          </div>
+          <input
+            type="time"
+            value={morningInput}
+            onChange={(e) => setMorningInput(e.target.value)}
+            style={inputStyle}
+          />
+        </div>
+
+        {/* Evening time */}
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ fontSize: 12, color: "#9096ab", marginBottom: 6, display: "flex", alignItems: "center", gap: 6 }}>
+            <img src="/evening.png" style={{ width: 16, height: 16, objectFit: "contain" }} alt="" />
+            夕の通知時間
+          </div>
+          <input
+            type="time"
+            value={eveningInput}
+            onChange={(e) => setEveningInput(e.target.value)}
+            style={inputStyle}
+          />
+        </div>
+
+        <button
+          onClick={handleSaveNotify}
+          disabled={permission === "denied" || permission === "unsupported"}
+          style={{
+            width: "100%", padding: "12px 0", borderRadius: 12, border: "none",
+            background: permission === "denied" || permission === "unsupported"
+              ? "#e0e4ed"
+              : savedNotify ? "#b8e8d0" : "#2a9060",
+            color: permission === "denied" || permission === "unsupported" ? "#9096ab" : "#fff",
+            fontSize: 14, fontWeight: 700,
+            cursor: permission === "denied" || permission === "unsupported" ? "default" : "pointer",
+          }}
+        >
+          {permission === "denied" ? "通知が拒否されています" : savedNotify ? "保存しました ✓" : "通知時間を保存する"}
+        </button>
+        {permission === "denied" && (
+          <div style={{ fontSize: 11, color: "#9096ab", marginTop: 8, textAlign: "center" }}>
+            ブラウザの設定から通知を許可してください
+          </div>
+        )}
       </div>
     </div>
   );
