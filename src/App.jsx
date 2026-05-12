@@ -554,10 +554,46 @@ export default function App() {
             </div>
           ) : (
             <>
-              <DoseCard label="朝食後" image="/morning.png" done={morningDone} flash={justTook === "morning"} onToggle={() => toggle(today, "morning")} />
+              <DoseCard label="朝食後" image="/morning.png" done={morningDone} onToggle={() => toggle(today, "morning")} />
               <div style={{ height: 12 }} />
-              <DoseCard label="夕食後" image="/evening.png" done={nightDone} flash={justTook === "night"} onToggle={() => toggle(today, "night")} />
+              <DoseCard label="夕食後" image="/evening.png" done={nightDone} onToggle={() => toggle(today, "night")} />
             </>
+          )}
+          {justTook && !bothDone && (
+            <div
+              style={{
+                position: "fixed",
+                inset: 0,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                zIndex: 100,
+                pointerEvents: "none",
+              }}
+            >
+              <div
+                style={{
+                  background: "#fff",
+                  borderRadius: 24,
+                  padding: "32px 40px",
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  gap: 14,
+                  boxShadow: "0 8px 40px rgba(0,0,0,0.14)",
+                  border: "1px solid #b8e8d0",
+                  animation: "popIn 0.2s ease",
+                }}
+              >
+                <img src="/medicine.png" alt="服用" style={{ width: 80, height: 80, objectFit: "contain" }} />
+                <div style={{ textAlign: "center" }}>
+                  <div style={{ fontWeight: 700, color: "#2a9060", fontSize: 17 }}>
+                    {justTook === "morning" ? "朝の服薬" : "夕の服薬"}を記録しました
+                  </div>
+                  <div style={{ fontSize: 13, color: "#9096ab", marginTop: 4 }}>よくできました！</div>
+                </div>
+              </div>
+            </div>
           )}
           {bothDone && todayCycle.phase !== "break" && (
             <div
