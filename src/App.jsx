@@ -926,12 +926,27 @@ function SettingsView({ session, cycleStart, onSaveCycleStart, notifyMorning, no
 function ScheduleView({ today, cycleStart }) {
   const DOW = ["日", "月", "火", "水", "木", "金", "土"];
 
+  // End date = cycleStart + 364 days (1年後の前日まで＝365日間)
+  const cycleStartDate = new Date(cycleStart + "T00:00:00");
+  const endDate = new Date(cycleStartDate);
+  endDate.setDate(endDate.getDate() + 364);
+  const endDateStr = endDate.toISOString().slice(0, 10);
+
+  // クール計算
+  const totalCycles = Math.ceil(365 / CYCLE_DAYS); // 全クール数
+  const todayDate = new Date(today + "T00:00:00");
+  const diffDays = Math.max(0, Math.floor((todayDate - cycleStartDate) / 86400000));
+  const completedCycles = Math.min(Math.floor(diffDays / CYCLE_DAYS), totalCycles);
+  const remainingCycles = totalCycles - completedCycles;
+
   const schedDays = [];
   const start = new Date(today + "T00:00:00");
   for (let i = 0; i <= 365; i++) {
     const d = new Date(start);
     d.setDate(start.getDate() + i);
-    schedDays.push(d.toISOString().slice(0, 10));
+    const dateStr = d.toISOString().slice(0, 10);
+    if (dateStr > endDateStr) break;
+    schedDays.push(dateStr);
   }
   const schedSet = new Set(schedDays);
 
@@ -944,7 +959,42 @@ function ScheduleView({ today, cycleStart }) {
 
   return (
     <div style={{ width: "100%", maxWidth: 400, padding: "24px 24px 0" }}>
-      <div style={{ display: "flex", gap: 16, marginBottom: 20, fontSize: 12 }}>
+      {/* クール進捗カード */}
+      <div
+        style={{
+          background: "#fff",
+          border: "1px solid #e0e4ed",
+          borderRadius: 14,
+          padding: "16px 20px",
+          marginBottom: 20,
+        }}
+      >
+        <div style={{ fontSize: 12, color: "#9096ab", marginBottom: 10 }}>
+          クール進捗　（1クール＝服薬14日＋休薬7日）
+        </div>
+        <div style={{ display: "flex", alignItems: "baseline", gap: 6, marginBottom: 10 }}>
+          <span style={{ fontSize: 28, fontWeight: 700, color: "#2a9060" }}>{remainingCycles}</span>
+          <span style={{ fontSize: 14, color: "#5a5a70" }}>クール残り</span>
+          <span style={{ fontSize: 13, color: "#aab0c0", marginLeft: 4 }}>/ 全{totalCycles}クール</span>
+        </div>
+        {/* プログレスバー */}
+        <div style={{ background: "#e8ecf5", borderRadius: 6, height: 8, overflow: "hidden" }}>
+          <div
+            style={{
+              height: "100%",
+              borderRadius: 6,
+              background: "linear-gradient(90deg, #2a9060, #6be0a0)",
+              width: `${(completedCycles / totalCycles) * 100}%`,
+              transition: "width 0.4s ease",
+            }}
+          />
+        </div>
+        <div style={{ fontSize: 11, color: "#aab0c0", marginTop: 6, textAlign: "right" }}>
+          終了日：{endDateStr.replace(/-/g, "/").replace(/(\d{4})\/(\d{2})\/(\d{2})/, "$1年$2月$3日")}
+        </div>
+      </div>
+      {/* 凡例 */}
+      <div style={{ display: "flex", gap: 16, marginBottom: 16, fontSize: 12 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
           <div style={{ width: 12, height: 12, borderRadius: 3, background: "#2a9060" }} />
           <span style={{ color: "#5a5a70" }}>服薬日</span>
