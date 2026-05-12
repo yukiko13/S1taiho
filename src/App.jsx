@@ -210,11 +210,10 @@ export default function App() {
   const [justTook, setJustTook] = useState(null);
   const [syncing, setSyncing] = useState(false);
 
-  // Auth listener
+  // Auth listener — INITIAL_SESSION fires on mount with the persisted session (or null)
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => setSession(session));
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
+      setSession(session ?? null);
     });
     return () => subscription.unsubscribe();
   }, []);
